@@ -258,6 +258,35 @@ function runAutoScan() {
 
       addDiscoveredIds_(ss, scanResult.newIds);
 
+      // Output per-file CSV immediately
+      if (scanResult.results.length > 0 && CONFIG.OUTPUT_FOLDER_ID) {
+        try {
+          var folder = DriveApp.getFolderById(CONFIG.OUTPUT_FOLDER_ID);
+          var bom = '﻿';
+          var csvHeader = 'sourceFileId,sourceFileName,sheetName,cellRef,formula,linkedFileId,linkedFileName,isNew';
+          var csvLines = [csvHeader];
+          for (var cr = 0; cr < scanResult.results.length; cr++) {
+            var row = scanResult.results[cr];
+            csvLines.push([
+              escapeCsvField_(row.sourceFileId),
+              escapeCsvField_(row.sourceFileName),
+              escapeCsvField_(row.sheetName),
+              escapeCsvField_(row.cellRef),
+              escapeCsvField_(row.formula),
+              escapeCsvField_(row.linkedFileId),
+              escapeCsvField_(row.linkedFileName),
+              row.isNew ? 'YES' : 'NO'
+            ].join(','));
+          }
+          var safeName = sanitizeFileName_(scanResult.results[0].sourceFileName || fileId);
+          var perFileName = 'LinkFind_' + safeName + '_' + formatDateCompact_(new Date()) + '.csv';
+          folder.createFile(perFileName, bom + csvLines.join('\n'), MimeType.PLAIN_TEXT);
+          Logger.log('CSV output: ' + perFileName);
+        } catch (csvErr) {
+          Logger.log('Per-file CSV error: ' + csvErr.message);
+        }
+      }
+
       if (scanResult.interrupted) {
         props.setProperty(PROP_KEYS.RESUME_FILE_INDEX, String(i));
         props.setProperty(PROP_KEYS.RESUME_SHEET_INDEX, String(scanResult.lastSheetIdx));
@@ -511,6 +540,7 @@ function extractFirstArg_(formula, openParen) {
 
 // resolveImportRangeId_ - resolve the first argument to a spreadsheet ID
 function resolveImportRangeId_(firstArg, sheet, rowNum) {
+  Logger.log('DEBUG resolveId: arg=' + (firstArg || '').substring(0, 100));
   if (!firstArg || firstArg === '') return null;
 
   var arg = firstArg.trim();
@@ -531,6 +561,7 @@ function resolveImportRangeId_(firstArg, sheet, rowNum) {
     return arg;
   }
 
+  Logger.log('DEBUG resolveId: UNRESOLVED arg=' + arg.substring(0, 100));
   return null;
 }
 
