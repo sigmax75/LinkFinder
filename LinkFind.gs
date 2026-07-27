@@ -225,8 +225,6 @@ function runAutoScan() {
 
     writeStatus_(resultSheet, resumeFileIdx, totalCount, 'Processing...');
 
-    var batchResults = [];
-    var batchErrors = [];
 
     for (var i = resumeFileIdx; i < fileIds.length; i++) {
       var elapsed = (new Date().getTime() - startTime) / 1000;
@@ -236,12 +234,6 @@ function runAutoScan() {
         props.deleteProperty(PROP_KEYS.RESUME_ROW_INDEX);
         Logger.log('LinkFind: Time limit at file boundary - ' + i + '/' + totalCount);
 
-        if (batchResults.length > 0) {
-          appendResultRows_(resultSheet, batchResults);
-        }
-        if (batchErrors.length > 0) {
-          appendErrorRows_(errorSheet, batchErrors);
-        }
         writeStatus_(resultSheet, i, totalCount, 'Suspended - next trigger');
         return;
       }
@@ -258,10 +250,10 @@ function runAutoScan() {
       var scanResult = scanFileForImportRange_(fileId, ss, startTime, sheetStart, rowStart);
 
       if (scanResult.error) {
-        batchErrors.push(scanResult.error);
+        appendErrorRows_(errorSheet, [scanResult.error]);
       }
       if (scanResult.results.length > 0) {
-        batchResults = batchResults.concat(scanResult.results);
+        appendResultRows_(resultSheet, scanResult.results);
       }
 
       addDiscoveredIds_(ss, scanResult.newIds);
@@ -271,13 +263,6 @@ function runAutoScan() {
         props.setProperty(PROP_KEYS.RESUME_SHEET_INDEX, String(scanResult.lastSheetIdx));
         props.setProperty(PROP_KEYS.RESUME_ROW_INDEX, String(scanResult.lastRowIdx));
         Logger.log('LinkFind: Time limit mid-file - file ' + i + ', sheet ' + scanResult.lastSheetIdx + ', row ' + scanResult.lastRowIdx);
-
-        if (batchResults.length > 0) {
-          appendResultRows_(resultSheet, batchResults);
-        }
-        if (batchErrors.length > 0) {
-          appendErrorRows_(errorSheet, batchErrors);
-        }
         writeStatus_(resultSheet, i, totalCount, 'Suspended - next trigger');
         return;
       }
@@ -289,12 +274,7 @@ function runAutoScan() {
     fileIds = getFileIds_(ss, false);
     totalCount = fileIds.length;
 
-    if (batchResults.length > 0) {
-      appendResultRows_(resultSheet, batchResults);
-    }
-    if (batchErrors.length > 0) {
-      appendErrorRows_(errorSheet, batchErrors);
-    }
+
 
     var allResults = readAllResultsFromSheet_(resultSheet);
     outputCsvFiles_(allResults);
