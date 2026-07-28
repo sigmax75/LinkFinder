@@ -302,16 +302,26 @@ function runAutoScan() {
       resumeRowIdx = 0;
     }
 
-    fileIds = getFileIds_(ss, false);
-    totalCount = fileIds.length;
+    // Check if new IDs were discovered
+    var newFileIds = getFileIds_(ss, false);
+    var newTotal = newFileIds.length;
 
+    if (newTotal > totalCount) {
+      // New files discovered - continue scanning
+      Logger.log('LinkFind: New files discovered (' + totalCount + ' -> ' + newTotal + '). Continuing...');
+      props.setProperty(PROP_KEYS.RESUME_FILE_INDEX, String(totalCount));
+      props.deleteProperty(PROP_KEYS.RESUME_SHEET_INDEX);
+      props.deleteProperty(PROP_KEYS.RESUME_ROW_INDEX);
+      writeStatus_(resultSheet, totalCount, newTotal, 'New files found - continuing...');
+      return;
+    }
 
-
+    // No new files - truly complete
     var allResults = readAllResultsFromSheet_(resultSheet);
     outputCsvFiles_(allResults);
 
-    writeStatus_(resultSheet, totalCount, totalCount, 'Completed');
-    Logger.log('LinkFind: All done - ' + totalCount + ' files');
+    writeStatus_(resultSheet, newTotal, newTotal, 'Completed');
+    Logger.log('LinkFind: All done - ' + newTotal + ' files (no new discoveries)');
 
     props.setProperty(PROP_KEYS.COMPLETED, '1');
     deleteLinkFindTriggers_();
