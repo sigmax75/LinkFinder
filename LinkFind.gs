@@ -114,7 +114,22 @@ function runLinkFind() {
       addDiscoveredIds_(ss, scanResult.newIds);
     }
 
+    var prevCount = fileIds.length;
     fileIds = getFileIds_(ss, false);
+    while (fileIds.length > prevCount) {
+      // 新規分をスキャン
+      for (var ni = prevCount; ni < fileIds.length; ni++) {
+        var nfid = fileIds[ni].trim();
+        if (nfid === '') continue;
+        Logger.log('Processing new: ' + (ni + 1) + '/' + fileIds.length + ' - ' + nfid);
+        var nResult = scanFileForImportRange_(nfid, ss, null, null, null);
+        if (nResult.error) allErrors.push(nResult.error);
+        if (nResult.results.length > 0) allResults = allResults.concat(nResult.results);
+        addDiscoveredIds_(ss, nResult.newIds);
+      }
+      prevCount = fileIds.length;
+      fileIds = getFileIds_(ss, false);
+    }
 
     if (allResults.length > 0) {
       writeResultRows_(resultSheet, allResults, 2);
