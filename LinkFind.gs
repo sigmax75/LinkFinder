@@ -2,7 +2,7 @@
 // CONFIG
 // ============================================================
 var CONFIG = {
-  VERSION: '1.6.0',  // 2026-07-28
+  VERSION: '1.7.0',  // 2026-07-28
   INPUT_SHEET_NAME: 'FileID一覧',
   RESULT_SHEET_NAME: '結果',
   ERROR_SHEET_NAME: 'エラー',
@@ -287,6 +287,12 @@ function runAutoScan() {
       }
       if (scanResult.results.length > 0) {
         appendResultRows_(resultSheet, scanResult.results);
+      } else if (!scanResult.error) {
+        var zeroRow = [{ sourceFileId: fileId, sourceFileName: scanResult.fileName || '', count: 0 }];
+        var sheet = resultSheet;
+        var lr = sheet.getLastRow();
+        var sr = (lr < 1) ? 2 : lr + 1;
+        sheet.getRange(sr, 1, 1, 3).setValues([[fileId, scanResult.fileName || '', 0]]);
       }
 
       addDiscoveredIds_(ss, scanResult.newIds);
