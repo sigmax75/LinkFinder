@@ -1062,76 +1062,75 @@ function columnToLetter_(col) {
 // ============================================================
 
 // countToDigit_ - convert IMPORTRANGE count to single digit 0-9
-function countToDigit_(count) {
-  if (count === 0) return '0';
-  if (count <= 5) return '1';
-  if (count <= 10) return '2';
-  if (count <= 15) return '3';
-  if (count <= 20) return '4';
-  if (count <= 25) return '5';
-  if (count <= 30) return '6';
-  if (count <= 35) return '7';
-  if (count <= 40) return '8';
-  return '9';
-}
+
 
 // summarize - generate summary code string from result data
 function summarize() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var ui = SpreadsheetApp.getUi();
 
-  var inputSheet = ss.getSheetByName(CONFIG.INPUT_SHEET_NAME);
-  if (!inputSheet) {
-    ui.alert('FileID一覧シートが見つかりません。');
-    return;
-  }
-
-  var resultSheet = ss.getSheetByName(CONFIG.RESULT_SHEET_NAME);
-  if (!resultSheet) {
-    ui.alert('結果シートが見つかりません。先に調査を実行してください。');
-    return;
-  }
-
+  // 1. Total files
   var fileIds = getFileIds_(ss, false);
-  if (fileIds.length === 0) {
-    ui.alert('FileIDがありません。');
-    return;
+  var totalFiles = fileIds.length;
+
+  // 2. Result rows
+  var resultSheet = ss.getSheetByName(CONFIG.RESULT_SHEET_NAME);
+  var resultRows = 0;
+  if (resultSheet && resultSheet.getLastRow() > 1) {
+    resultRows = resultSheet.getLastRow() - 1;
   }
 
-  var resultLastRow = resultSheet.getLastRow();
-  var sourceIdCounts = {};
-  if (resultLastRow >= 2) {
-    var resultData = resultSheet.getRange(2, 1, resultLastRow - 1, 1).getValues();
-    for (var i = 0; i < resultData.length; i++) {
-      var sid = String(resultData[i][0]).trim();
-      if (sid === '') continue;
-      if (!sourceIdCounts[sid]) {
-        sourceIdCounts[sid] = 0;
-      }
-      sourceIdCounts[sid] = sourceIdCounts[sid] + 1;
+  // 3. Error count
+  var errorSheet = ss.getSheetByName(CONFIG.ERROR_SHEET_NAME);
+  var errorCount = 0;
+  if (errorSheet && errorSheet.getLastRow() > 1) {
+    errorCount = errorSheet.getLastRow() - 1;
+  }
+
+  // 4. Processed files (unique sourceFileIds in result + error)
+  var processed = {};
+  if (resultSheet && resultRows > 0) {
+    var srcIds = resultSheet.getRange(2, 1, resultRows, 1).getValues();
+    for (var i = 0; i < srcIds.length; i++) {
+      if (srcIds[i][0]) processed[srcIds[i][0]] = true;
     }
   }
+  if (errorSheet && errorCount > 0) {
+    var errIds = errorSheet.getRange(2, 1, errorCount, 1).getValues();
+    for (var j = 0; j < errIds.length; j++) {
+      if (errIds[j][0]) processed[errIds[j][0]] = true;
+    }
+  }
+  var processedCount = Object.keys(processed).length;
 
-  var digitString = '';
-  var totalRefs = 0;
-  for (var j = 0; j < fileIds.length; j++) {
-    var fid = fileIds[j].trim();
-    var cnt = sourceIdCounts[fid] || 0;
-    totalRefs = totalRefs + cnt;
-    digitString = digitString + countToDigit_(cnt);
+  // 5. CSV count
+  var csvCount = 0;
+  if (CONFIG.OUTPUT_FOLDER_ID) {
+    try {
+      var folder = DriveApp.getFolderById(CONFIG.OUTPUT_FOLDER_ID);
+      var files = folder.getFiles();
+      while (files.hasNext()) { var f = files.next(); if (f.getName().indexOf('LinkFind_') === 0) csvCount++; }
+    } catch(e) {}
   }
 
+  // Output code
+  var code = totalFiles + ' ' + processedCount + ' ' + errorCount + ' ' + resultRows + ' ' + csvCount;
+
+  // Write to summary sheet
   var summarySheet = ss.getSheetByName('要約');
-  if (!summarySheet) {
-    summarySheet = ss.insertSheet('要約');
-  } else {
-    summarySheet.clear();
-  }
-  summarySheet.getRange('A1').setValue(digitString);
-  summarySheet.getRange('A2').setValue(fileIds.length);
-  summarySheet.getRange('A3').setValue(totalRefs);
+  if (!summarySheet) summarySheet = ss.insertSheet('要約');
+  summarySheet.clear();
+  summarySheet.getRange('A1').setValue(code);
+  summarySheet.getRange('A3').setValue('全ファイル数');
+  summarySheet.getRange('B3').setValue(totalFiles);
+  summarySheet.getRange('A4').setValue('処理完了数');
+  summarySheet.getRange('B4').setValue(processedCount);
+  summarySheet.getRange('A5').setValue('エラー数');
+  summarySheet.getRange('B5').setValue(errorCount);
+  summarySheet.getRange('A6').setValue('IMPORTRANGE検出数');
+  summarySheet.getRange('B6').setValue(resultRows);
+  summarySheet.getRange('A7').setValue('CSV出力数');
+  summarySheet.getRange('B7').setValue(csvCount);
 
-  Logger.log('Summarize: files=' + fileIds.length + ' refs=' + totalRefs + ' len=' + digitString.length);
-
-  ui.alert(digitString);
+  ui.alert(code);
 }
