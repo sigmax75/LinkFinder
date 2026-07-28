@@ -260,24 +260,28 @@ function runAutoScan() {
 
       addDiscoveredIds_(ss, scanResult.newIds);
 
-      // Output per-file CSV immediately
+      // Output per-file CSV immediately (aggregated by source file)
       if (scanResult.results.length > 0 && CONFIG.OUTPUT_FOLDER_ID) {
         try {
           var folder = DriveApp.getFolderById(CONFIG.OUTPUT_FOLDER_ID);
-          var bom = '﻿';
-          var csvHeader = 'sourceFileId,sourceFileName,sheetName,cellRef,formula,linkedFileId,linkedFileName,isNew';
-          var csvLines = [csvHeader];
+          var bom = '\uFEFF';
+          var csvHeader = 'FileID,ファイル名,IMPORTRANGE数';
+          var aggregated = {};
           for (var cr = 0; cr < scanResult.results.length; cr++) {
             var row = scanResult.results[cr];
+            var aggKey = row.sourceFileId;
+            if (!aggregated[aggKey]) {
+              aggregated[aggKey] = { name: row.sourceFileName, count: 0 };
+            }
+            aggregated[aggKey].count++;
+          }
+          var csvLines = [csvHeader];
+          var aggKeys = Object.keys(aggregated);
+          for (var ak = 0; ak < aggKeys.length; ak++) {
             csvLines.push([
-              escapeCsvField_(row.sourceFileId),
-              escapeCsvField_(row.sourceFileName),
-              escapeCsvField_(row.sheetName),
-              escapeCsvField_(row.cellRef),
-              escapeCsvField_(row.formula),
-              escapeCsvField_(row.linkedFileId),
-              escapeCsvField_(row.linkedFileName),
-              row.isNew ? 'YES' : 'NO'
+              escapeCsvField_(aggKeys[ak]),
+              escapeCsvField_(aggregated[aggKeys[ak]].name),
+              aggregated[aggKeys[ak]].count
             ].join(','));
           }
           var safeName = sanitizeFileName_(scanResult.results[0].sourceFileName || fileId);
@@ -928,19 +932,14 @@ function outputCsvFiles_(results) {
   var dateStr = formatDateCompact_(new Date());
   var bom = '\uFEFF';
 
-  var csvHeader = '元FileID,元ファイル名,シート名,セル位置,IMPORTRANGE数式,リンク先FileID,リンク先ファイル名,新規追加';
+  var csvHeader = 'FileID,ファイル名,IMPORTRANGE数';
   var csvLines = [csvHeader];
   for (var i = 0; i < results.length; i++) {
     var r = results[i];
     csvLines.push(
       escapeCsvField_(r.sourceFileId) + ',' +
       escapeCsvField_(r.sourceFileName) + ',' +
-      escapeCsvField_(r.sheetName) + ',' +
-      escapeCsvField_(r.cellRef) + ',' +
-      escapeCsvField_(r.formula) + ',' +
-      escapeCsvField_(r.linkedFileId) + ',' +
-      escapeCsvField_(r.linkedFileName) + ',' +
-      escapeCsvField_(r.isNew)
+      escapeCsvField_(r.count)
     );
   }
 
@@ -948,46 +947,8 @@ function outputCsvFiles_(results) {
   var unifiedContent = bom + csvLines.join('\r\n');
   folder.createFile(unifiedFileName, unifiedContent, MimeType.PLAIN_TEXT);
   Logger.log('LinkFind: Created ' + unifiedFileName);
-
-  var fileGroups = {};
-  for (var j = 0; j < results.length; j++) {
-    var res = results[j];
-    var key = res.sourceFileId;
-    if (!fileGroups[key]) {
-      fileGroups[key] = {
-        fileName: res.sourceFileName,
-        rows: []
-      };
-    }
-    fileGroups[key].rows.push(res);
-  }
-
-  var fileKeys = Object.keys(fileGroups);
-  for (var k = 0; k < fileKeys.length; k++) {
-    var group = fileGroups[fileKeys[k]];
-    var safeName = sanitizeFileName_(group.fileName);
-    var perFileLines = [csvHeader];
-
-    for (var l = 0; l < group.rows.length; l++) {
-      var row = group.rows[l];
-      perFileLines.push(
-        escapeCsvField_(row.sourceFileId) + ',' +
-        escapeCsvField_(row.sourceFileName) + ',' +
-        escapeCsvField_(row.sheetName) + ',' +
-        escapeCsvField_(row.cellRef) + ',' +
-        escapeCsvField_(row.formula) + ',' +
-        escapeCsvField_(row.linkedFileId) + ',' +
-        escapeCsvField_(row.linkedFileName) + ',' +
-        escapeCsvField_(row.isNew)
-      );
-    }
-
-    var perFileName = 'LinkFind_' + safeName + '_' + dateStr + '.csv';
-    var perFileContent = bom + perFileLines.join('\r\n');
-    folder.createFile(perFileName, perFileContent, MimeType.PLAIN_TEXT);
-    Logger.log('LinkFind: Created ' + perFileName);
-  }
 }
+
 
 // escapeCsvField_ - escape a field for CSV output
 function escapeCsvField_(value) {
