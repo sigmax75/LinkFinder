@@ -1114,7 +1114,8 @@ function summarize() {
   }
 
   // Output code
-  var code = totalFiles + ' ' + processedCount + ' ' + errorCount + ' ' + resultRows + ' ' + csvCount;
+  var pad = function(n, len) { var s = String(n); while (s.length < len) s = '0' + s; return s; };
+  var code = pad(totalFiles, 3) + pad(processedCount, 3) + pad(errorCount, 2) + pad(resultRows, 5) + pad(csvCount, 3);
 
   // Write to summary sheet
   var summarySheet = ss.getSheetByName('要約');
