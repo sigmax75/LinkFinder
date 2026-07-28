@@ -2,7 +2,7 @@
 // CONFIG
 // ============================================================
 var CONFIG = {
-  VERSION: '1.4.0',  // 2026-07-28
+  VERSION: '1.5.0',  // 2026-07-28
   INPUT_SHEET_NAME: 'FileID一覧',
   RESULT_SHEET_NAME: '結果',
   ERROR_SHEET_NAME: 'エラー',
