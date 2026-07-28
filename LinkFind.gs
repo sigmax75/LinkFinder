@@ -791,11 +791,7 @@ function prepareResultSheet_(ss, clearSheet) {
     sheet.setColumnWidth(1, 320);
     sheet.setColumnWidth(2, 250);
     sheet.setColumnWidth(3, 150);
-    sheet.setColumnWidth(4, 80);
-    sheet.setColumnWidth(5, 400);
-    sheet.setColumnWidth(6, 320);
-    sheet.setColumnWidth(7, 250);
-    sheet.setColumnWidth(8, 80);
+
 
     sheet.setFrozenRows(1);
   }
@@ -817,7 +813,7 @@ function prepareErrorSheet_(ss, clearSheet) {
     sheet.getRange(1, 1, sheet.getMaxRows(), sheet.getMaxColumns())
       .setBackground(null);
 
-    var headers = ['FileID', 'ファイル名', 'エラー内容', '発生日時'];
+    var headers = ['FileID', 'ファイル名', 'IMPORTRANGE数', 'リンク先数', 'リンク先ファイル', '新規'];
     var headerRange = sheet.getRange(1, 1, 1, headers.length);
     headerRange.setValues([headers]);
     headerRange.setBackground(CONFIG.HEADER_COLOR);
@@ -860,21 +856,20 @@ function appendResultRows_(sheet, results) {
   dataRange.setValues(rows);
 }
 
-// buildResultRows_ - build 2D array from results
+// buildResultRows_ - build 2D array from results (grouped by source file)
 function buildResultRows_(results) {
-  var rows = [];
+  var fileMap = {};
   for (var i = 0; i < results.length; i++) {
     var r = results[i];
-    rows.push([
-      r.sourceFileId,
-      r.sourceFileName,
-      r.sheetName,
-      r.cellRef,
-      r.formula,
-      r.linkedFileId,
-      r.linkedFileName,
-      r.isNew
-    ]);
+    if (!fileMap[r.sourceFileId]) {
+      fileMap[r.sourceFileId] = { name: r.sourceFileName, count: 0 };
+    }
+    fileMap[r.sourceFileId].count++;
+  }
+  var rows = [];
+  var keys = Object.keys(fileMap);
+  for (var k = 0; k < keys.length; k++) {
+    rows.push([keys[k], fileMap[keys[k]].name, fileMap[keys[k]].count]);
   }
   return rows;
 }
