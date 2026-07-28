@@ -41,6 +41,8 @@ function onOpen() {
     .addItem('再開位置を設定', 'setResumeIndex')
     .addSeparator()
     .addItem('キャッシュクリア', 'clearAllProgress')
+    .addSeparator()
+    .addItem('要約コード生成', 'summarize')
     .addToUi();
 }
 
@@ -1053,4 +1055,83 @@ function columnToLetter_(col) {
     col = (col - temp - 1) / 26;
   }
   return letter;
+}
+
+// ============================================================
+// Summarize
+// ============================================================
+
+// countToDigit_ - convert IMPORTRANGE count to single digit 0-9
+function countToDigit_(count) {
+  if (count === 0) return '0';
+  if (count <= 5) return '1';
+  if (count <= 10) return '2';
+  if (count <= 15) return '3';
+  if (count <= 20) return '4';
+  if (count <= 25) return '5';
+  if (count <= 30) return '6';
+  if (count <= 35) return '7';
+  if (count <= 40) return '8';
+  return '9';
+}
+
+// summarize - generate summary code string from result data
+function summarize() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ui = SpreadsheetApp.getUi();
+
+  var inputSheet = ss.getSheetByName(CONFIG.INPUT_SHEET_NAME);
+  if (!inputSheet) {
+    ui.alert('FileID一覧シートが見つかりません。');
+    return;
+  }
+
+  var resultSheet = ss.getSheetByName(CONFIG.RESULT_SHEET_NAME);
+  if (!resultSheet) {
+    ui.alert('結果シートが見つかりません。先に調査を実行してください。');
+    return;
+  }
+
+  var fileIds = getFileIds_(ss, false);
+  if (fileIds.length === 0) {
+    ui.alert('FileIDがありません。');
+    return;
+  }
+
+  var resultLastRow = resultSheet.getLastRow();
+  var sourceIdCounts = {};
+  if (resultLastRow >= 2) {
+    var resultData = resultSheet.getRange(2, 1, resultLastRow - 1, 1).getValues();
+    for (var i = 0; i < resultData.length; i++) {
+      var sid = String(resultData[i][0]).trim();
+      if (sid === '') continue;
+      if (!sourceIdCounts[sid]) {
+        sourceIdCounts[sid] = 0;
+      }
+      sourceIdCounts[sid] = sourceIdCounts[sid] + 1;
+    }
+  }
+
+  var digitString = '';
+  var totalRefs = 0;
+  for (var j = 0; j < fileIds.length; j++) {
+    var fid = fileIds[j].trim();
+    var cnt = sourceIdCounts[fid] || 0;
+    totalRefs = totalRefs + cnt;
+    digitString = digitString + countToDigit_(cnt);
+  }
+
+  var summarySheet = ss.getSheetByName('要約');
+  if (!summarySheet) {
+    summarySheet = ss.insertSheet('要約');
+  } else {
+    summarySheet.clear();
+  }
+  summarySheet.getRange('A1').setValue(digitString);
+  summarySheet.getRange('A2').setValue(fileIds.length);
+  summarySheet.getRange('A3').setValue(totalRefs);
+
+  Logger.log('Summarize: files=' + fileIds.length + ' refs=' + totalRefs + ' len=' + digitString.length);
+
+  ui.alert(digitString);
 }
