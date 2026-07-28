@@ -1144,4 +1144,54 @@ function summarize() {
   summarySheet.getRange('B7').setValue(csvCount);
 
   ui.alert(code);
+
+  // File-level summary
+  if (resultSheet && resultRows > 0) {
+    var allData = resultSheet.getRange(2, 1, resultRows, 7).getValues();
+    var fileSummary = {};
+    for (var s = 0; s < allData.length; s++) {
+      var srcId = allData[s][0];
+      var srcName = allData[s][1];
+      var linkedId = allData[s][5];
+      var linkedName = allData[s][6];
+      if (!srcId) continue;
+      if (!fileSummary[srcId]) {
+        fileSummary[srcId] = { name: srcName, links: {}, count: 0 };
+      }
+      fileSummary[srcId].count++;
+      if (linkedId && linkedId !== 'unresolved') {
+        fileSummary[srcId].links[linkedId] = linkedName || linkedId;
+      }
+    }
+    var sumSheet = ss.getSheetByName('ファイル別要約');
+    if (!sumSheet) sumSheet = ss.insertSheet('ファイル別要約');
+    sumSheet.clear();
+    var sumHeaders = ['元ファイルID', '元ファイル名', 'IMPORTRANGE数', 'リンク先ファイル数', 'リンク先ファイル名'];
+    var sumHeaderRange = sumSheet.getRange(1, 1, 1, sumHeaders.length);
+    sumHeaderRange.setValues([sumHeaders]);
+    sumHeaderRange.setBackground('#4A86C8');
+    sumHeaderRange.setFontColor('#FFFFFF');
+    sumHeaderRange.setFontWeight('bold');
+    sumSheet.setFrozenRows(1);
+    var sumRows = [];
+    var keys = Object.keys(fileSummary);
+    for (var k = 0; k < keys.length; k++) {
+      var fs = fileSummary[keys[k]];
+      var linkNames = [];
+      var lkeys = Object.keys(fs.links);
+      for (var lk = 0; lk < lkeys.length; lk++) {
+        linkNames.push(fs.links[lkeys[lk]]);
+      }
+      sumRows.push([keys[k], fs.name, fs.count, lkeys.length, linkNames.join(', ')]);
+    }
+    if (sumRows.length > 0) {
+      sumSheet.getRange(2, 1, sumRows.length, sumHeaders.length).setValues(sumRows);
+    }
+    sumSheet.setColumnWidth(1, 320);
+    sumSheet.setColumnWidth(2, 250);
+    sumSheet.setColumnWidth(3, 100);
+    sumSheet.setColumnWidth(4, 120);
+    sumSheet.setColumnWidth(5, 500);
+    Logger.log('File summary: ' + sumRows.length + ' files');
+  }
 }
