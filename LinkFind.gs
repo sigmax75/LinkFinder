@@ -2,7 +2,7 @@
 // CONFIG
 // ============================================================
 var CONFIG = {
-  VERSION: '1.5.0',  // 2026-07-28
+  VERSION: '1.6.0',  // 2026-07-28
   INPUT_SHEET_NAME: 'FileID一覧',
   RESULT_SHEET_NAME: '結果',
   ERROR_SHEET_NAME: 'エラー',
@@ -104,7 +104,12 @@ function runLinkFind() {
       Logger.log('Processing: ' + (i + 1) + '/' + fileIds.length + ' - ' + fileId);
       writeStatus_(resultSheet, i, fileIds.length, 'Processing...');
 
-      var scanResult = scanFileForImportRange_(fileId, ss, null, null, null);
+      var csvFile = null;
+      try {
+        var fname = DriveApp.getFileById(fileId).getName();
+        csvFile = createCsvForFile_(fname, CONFIG.OUTPUT_FOLDER_ID);
+      } catch(ce2) {}
+      var scanResult = scanFileForImportRange_(fileId, ss, null, null, null, csvFile);
       if (scanResult.error) {
         allErrors.push(scanResult.error);
       }
@@ -123,7 +128,12 @@ function runLinkFind() {
         var nfid = fileIds[ni].trim();
         if (nfid === '') continue;
         Logger.log('Processing new: ' + (ni + 1) + '/' + fileIds.length + ' - ' + nfid);
-        var nResult = scanFileForImportRange_(nfid, ss, null, null, null);
+        var nCsvFile = null;
+        try {
+          var nfname = DriveApp.getFileById(nfid).getName();
+          nCsvFile = createCsvForFile_(nfname, CONFIG.OUTPUT_FOLDER_ID);
+        } catch(ce3) {}
+        var nResult = scanFileForImportRange_(nfid, ss, null, null, null, nCsvFile);
         if (nResult.error) allErrors.push(nResult.error);
         if (nResult.results.length > 0) allResults = allResults.concat(nResult.results);
         addDiscoveredIds_(ss, nResult.newIds);
@@ -265,7 +275,12 @@ function runAutoScan() {
       var sheetStart = (i === resumeFileIdx && resumeSheetIdx > 0) ? resumeSheetIdx : null;
       var rowStart = (i === resumeFileIdx && resumeRowIdx > 0) ? resumeRowIdx : null;
 
-      var scanResult = scanFileForImportRange_(fileId, ss, startTime, sheetStart, rowStart);
+      var csvFile = null;
+      try {
+        var fname = DriveApp.getFileById(fileId).getName();
+        csvFile = createCsvForFile_(fname, CONFIG.OUTPUT_FOLDER_ID);
+      } catch(ce) {}
+      var scanResult = scanFileForImportRange_(fileId, ss, startTime, sheetStart, rowStart, csvFile);
 
       if (scanResult.error) {
         appendErrorRows_(errorSheet, [scanResult.error]);
@@ -356,7 +371,7 @@ function runAutoScan() {
 // ============================================================
 
 // scanFileForImportRange_ - scan a single spreadsheet for IMPORTRANGE formulas
-function scanFileForImportRange_(fileId, ss, startTime, resumeSheetIdx, resumeRowIdx) {
+function scanFileForImportRange_(fileId, ss, startTime, resumeSheetIdx, resumeRowIdx, csvFile) {
   var output = {
     results: [],
     error: null,
@@ -1022,6 +1037,53 @@ function columnToLetter_(col) {
     col = (col - temp - 1) / 26;
   }
   return letter;
+}
+
+// ============================================================
+// CSV incremental output helpers
+// ============================================================
+
+// createCsvForFile_ - create a new CSV file with header, return file object
+function createCsvForFile_(fileName, folderId) {
+  if (!folderId) return null;
+  try {
+    var folder = DriveApp.getFolderById(folderId);
+    var bom = '﻿';
+    var header = 'FileID,ファイル名,シート名,セル位置,IMPORTRANGE数式,リンク先FileID,リンク先ファイル名,新規';
+    var safeName = sanitizeFileName_(fileName);
+    var csvName = 'LinkFind_' + safeName + '_' + formatDateCompact_(new Date()) + '.csv';
+    var file = folder.createFile(csvName, bom + header + String.fromCharCode(10), MimeType.PLAIN_TEXT);
+    Logger.log('CSV created: ' + csvName);
+    return file;
+  } catch (e) {
+    Logger.log('CSV create error: ' + e.message);
+    return null;
+  }
+}
+
+// appendToCsv_ - append rows to existing CSV file
+function appendToCsv_(file, results) {
+  if (!file || results.length === 0) return;
+  try {
+    var existing = file.getBlob().getDataAsString();
+    var newLines = '';
+    for (var i = 0; i < results.length; i++) {
+      var r = results[i];
+      newLines += [
+        escapeCsvField_(r.sourceFileId),
+        escapeCsvField_(r.sourceFileName),
+        escapeCsvField_(r.sheetName),
+        escapeCsvField_(r.cellRef),
+        escapeCsvField_(r.formula),
+        escapeCsvField_(r.linkedFileId),
+        escapeCsvField_(r.linkedFileName),
+        r.isNew ? 'YES' : 'NO'
+      ].join(',') + String.fromCharCode(10);
+    }
+    file.setContent(existing + newLines);
+  } catch (e) {
+    Logger.log('CSV append error: ' + e.message);
+  }
 }
 
 // ============================================================
